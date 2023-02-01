@@ -6,6 +6,8 @@ import { addExtra } from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import validator from 'validator';
 
+const { HEADLESS = 'true', DEVTOOLS = 'false' } = process.env;
+
 const DOWNLOAD_PATH = 'downloads';
 const WHIMSICAL_BASE_URL = 'https://whimsical.com/';
 
@@ -23,8 +25,8 @@ const init = async () => {
 
   console.log('🚀 Launching browser');
   const browser = await puppeteerExtra.launch({
-    headless: false,
-    devtools: true
+    headless: HEADLESS === 'true',
+    devtools: DEVTOOLS === 'true'
   });
 
   console.log('📄 Opening new page');
