@@ -16,6 +16,8 @@ You can just run the latest version from the terminal, without installing it loc
 npx whimsical-exporter
 ```
 
+Or clone the repo and install the dependencies with `npm install`, then run it with `npm start`.
+
 The interactive tool will ask you for your email, password, and the URL you want to start exporting from, and will save the files with the same structure in a `downloads` folder on your working directory.
 
 ## License
