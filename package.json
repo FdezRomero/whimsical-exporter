@@ -1,0 +1,56 @@
+{
+  "name": "whimsical-exporter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CLI tool to export Whimsical boards recursively as SVG files.",
+  "author": "Rodrigo Fernández (@FdezRomero)",
+  "license": "MIT",
+  "keywords": [
+    "whimsical",
+    "export",
+    "download",
+    "bulk",
+    "cli",
+    "svg"
+  ],
+  "homepage": "https://github.com/FdezRomero/whimsical-exporter",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FdezRomero/whimsical-exporter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/FdezRomero/whimsical-exporter/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "bin": "./dist/index.js",
+  "scripts": {
+    "start": "npm run build && node dist/index.js",
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "inquirer": "^8.2.5",
+    "puppeteer": "^19.6.2",
+    "puppeteer-extra": "^3.3.4",
+    "puppeteer-extra-plugin-stealth": "^2.11.1",
+    "validator": "^13.7.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^8.2.5",
+    "@types/node": "^18.11.18",
+    "@types/validator": "^13.7.11",
+    "@typescript-eslint/eslint-plugin": "^5.50.0",
+    "@typescript-eslint/parser": "^5.50.0",
+    "eslint": "^8.33.0",
+    "eslint-config-prettier": "^8.6.0",
+    "prettier": "^2.8.3",
+    "ts-node": "^10.9.1",
+    "typescript": "~4.9.5"
+  }
+}
