@@ -158,7 +158,7 @@ const downloadUrls = async (
       const svg = await page.content();
       const name = getItemName(url);
       const path = `${basePath}/${name}.svg`;
-      await writeFile(path, svg);
+      await writeFile(path, addGrayBackground(svg));
       console.log(`⬇️ Downloaded SVG to ${path}`);
       itemsDownloaded++;
     }
@@ -169,5 +169,8 @@ const getItemName = (url: string): string => {
   const [, path] = url.split(WHIMSICAL_BASE_URL);
   return path;
 };
+
+const addGrayBackground = (svg: string): string =>
+  svg.replace('>', ' style="background: #f0f4f7;">');
 
 init();
