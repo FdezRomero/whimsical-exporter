@@ -1,6 +1,6 @@
 # whimsical-exporter
 
-CLI tool to export your [Whimsical](https://whimsical.com) boards recursively as SVG files from a starting folder URL.
+CLI tool to export your [Whimsical](https://whimsical.com) boards recursively as SVG, PNG, or PDF from a starting folder URL.
 
 ## Requirements
 
@@ -18,7 +18,7 @@ npx whimsical-exporter
 
 Or clone the repo and install the dependencies with `npm install`, then run it with `npm start`.
 
-The interactive tool will ask you for your email, password, and the URL you want to start exporting from, and will save the files with the same structure in a `downloads` folder on your working directory.
+The interactive tool will ask you for your email, password, the URL you want to start exporting from, and the image formats you prefer and will save the files with the same folder structure in a `downloads` folder on your working directory.
 
 ## License
 

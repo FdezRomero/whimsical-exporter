@@ -2,7 +2,7 @@
   "name": "whimsical-exporter",
   "version": "1.0.0",
   "private": true,
-  "description": "CLI tool to export Whimsical boards recursively as SVG files.",
+  "description": "CLI tool to export Whimsical boards recursively as image files.",
   "author": "Rodrigo Fernández (@FdezRomero)",
   "license": "MIT",
   "keywords": [
@@ -11,7 +11,7 @@
     "download",
     "bulk",
     "cli",
-    "svg"
+    "tool"
   ],
   "homepage": "https://github.com/FdezRomero/whimsical-exporter",
   "repository": {
