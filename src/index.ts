@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir, readdir, writeFile } from 'fs/promises';
 import inquirer from 'inquirer';
 import puppeteer, { CDPSession, HTTPResponse, Page } from 'puppeteer';
 import { addExtra } from 'puppeteer-extra';
@@ -88,11 +88,6 @@ const promptInputs = (): Promise<{
       default: FILE_TYPES?.split(','),
       choices: [
         {
-          name: 'SVG (shapes can be zoomed in and edited)',
-          short: 'SVG',
-          value: FileType.SVG
-        },
-        {
           name: 'PNG at 2x zoom (static image, shapes cannot be edited)',
           short: 'PNG',
           value: FileType.PNG
@@ -101,6 +96,11 @@ const promptInputs = (): Promise<{
           name: 'PDF (landscape, shapes can be zoomed in)',
           short: 'PDF',
           value: FileType.PDF
+        },
+        {
+          name: 'SVG (shapes can be zoomed in and edited)',
+          short: 'SVG',
+          value: FileType.SVG
         }
       ],
       validate: (input: string[]) => Boolean(input.length)
@@ -204,14 +204,30 @@ const downloadUrls = async (
   downloadPath: string,
   fileTypes: FileType[]
 ): Promise<void> => {
+  const dirFiles = await readdir(downloadPath);
+
   for await (const itemUrl of itemUrls) {
     const itemName = getItemName(itemUrl);
     console.debug(`⚙️  Processing: ${itemName}`);
 
-    const isFolder = await checkItemIsFolder(page, itemUrl);
-
-    if (isFolder) {
+    if (
+      dirFiles.includes(itemName) ||
+      (await checkItemIsFolder(page, itemUrl))
+    ) {
       await navigateToFolder(page, itemUrl, downloadPath, fileTypes);
+      continue;
+    }
+
+    const pendingFileTypes = fileTypes.filter(fileType => {
+      if (dirFiles.includes(`${itemName}.${fileType}`)) {
+        console.log(`⏭  ${fileType.toUpperCase()} already exists, skipping`);
+        return false;
+      }
+
+      return true;
+    });
+
+    if (!pendingFileTypes.length) {
       continue;
     }
 
@@ -223,25 +239,11 @@ const downloadUrls = async (
     }
 
     try {
-      if (fileTypes.includes(FileType.PNG)) {
-        const imageBuffer = await getImageBlob(page, itemUrl);
-        const filePath = `${downloadPath}/${itemName}.${FileType.PNG}`;
-        await writeFile(filePath, imageBuffer);
-        console.log('⬇️  Downloaded PNG');
-      }
-
-      if (fileTypes.includes(FileType.PDF)) {
-        const pdfStream = await getPdfStream(page, itemUrl);
-        const filePath = `${downloadPath}/${itemName}.${FileType.PDF}`;
-        await writeFile(filePath, pdfStream);
-        console.log('⬇️  Downloaded PDF');
-      }
-
-      if (fileTypes.includes(FileType.SVG)) {
-        const svg = await getSvgContent(page, itemUrl);
-        const filePath = `${downloadPath}/${itemName}.${FileType.SVG}`;
-        await writeFile(filePath, svg);
-        console.log('⬇️  Downloaded SVG');
+      for (const fileType of pendingFileTypes) {
+        const itemContent = await getItemContent(page, itemUrl, fileType);
+        const filePath = `${downloadPath}/${itemName}.${fileType}`;
+        await writeFile(filePath, itemContent);
+        console.log(`⬇️  Downloaded ${fileType.toUpperCase()}`);
       }
 
       itemsDownloaded++;
@@ -272,6 +274,21 @@ const checkItemHasCanvas = async (
   await goToUrlIfNeeded(page, itemUrl);
   const boardCanvas = await page.$('[data-wc="board-canvas"]');
   return Boolean(boardCanvas);
+};
+
+const getItemContent = (
+  page: Page,
+  itemUrl: string,
+  fileType: FileType
+): Promise<string | Buffer | internal.Readable> => {
+  switch (fileType) {
+    case FileType.PNG:
+      return getImageBlob(page, itemUrl);
+    case FileType.PDF:
+      return getPdfStream(page, itemUrl);
+    case FileType.SVG:
+      return getSvgContent(page, itemUrl);
+  }
 };
 
 const getSvgContent = async (page: Page, itemUrl: string): Promise<string> => {
