@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from 'fs/promises';
 import inquirer from 'inquirer';
-import puppeteer, { CDPSession, Page } from 'puppeteer';
+import puppeteer, { CDPSession, HTTPResponse, Page } from 'puppeteer';
 import { addExtra } from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import internal from 'stream';
 import validator from 'validator';
 
-const { HEADLESS = 'true', DEVTOOLS = 'false' } = process.env;
+const { DEBUG = 'false' } = process.env;
 
 const DOWNLOAD_PATH = 'downloads';
 const WHIMSICAL_BASE_URL = 'https://whimsical.com/';
@@ -25,25 +26,28 @@ let itemsDownloaded = 0;
 const init = async () => {
   const downloadPath = `${process.cwd()}/${DOWNLOAD_PATH}`;
   console.log('👋 Welcome to whimsical-exporter');
-  console.log(`ℹ All exported files will be saved in ${downloadPath}\n`);
+  console.log(`ℹ  All exported files will be saved in ${downloadPath}\n`);
 
   const { email, password, folderUrl, fileTypes } = await promptInputs();
 
   console.log('🚀 Launching browser');
   const browser = await puppeteerExtra.launch({
-    headless: HEADLESS === 'true',
-    devtools: DEVTOOLS === 'true'
+    headless: DEBUG !== 'true',
+    devtools: DEBUG === 'true'
   });
 
   console.log('📄 Opening new page');
   const page = await browser.newPage();
 
   await logIn(page, email, password);
-
   await navigateToFolder(page, folderUrl, downloadPath, fileTypes);
 
   console.log(`✨ Finished exporting ${itemsDownloaded} items`);
-  await browser.close();
+
+  if (DEBUG !== 'true') {
+    await browser.close();
+    process.exit();
+  }
 };
 
 const promptInputs = (): Promise<{
@@ -52,14 +56,14 @@ const promptInputs = (): Promise<{
   folderUrl: string;
   fileTypes: FileType[];
 }> => {
-  const { USER, PASSWORD, FOLDER_URL, FILE_TYPES } = process.env;
+  const { EMAIL, PASSWORD, FOLDER_URL, FILE_TYPES } = process.env;
 
   return inquirer.prompt([
     {
       name: 'email',
       type: 'input',
       message: 'Your Whimsical email (username@domain.tld):',
-      default: USER,
+      default: EMAIL,
       validate: (input: string) => validator.isEmail(input)
     },
     {
@@ -130,15 +134,17 @@ const navigateToFolder = async (
   downloadPath: string,
   fileTypes: FileType[]
 ): Promise<void> => {
-  console.log(`📂 Navigating to folder ${folderUrl}`);
+  const folderName = getItemName(folderUrl);
+  const folderPath = `${downloadPath}/${folderName}`;
+
+  console.log(`📂 Navigating to folder: ${folderName}`);
   await goToUrlIfNeeded(page, folderUrl);
 
   // Scroll down to lazy load batches of 100 items
   await loadAllItems(page);
 
   const itemUrls = await getUrls(page);
-  const folderName = getItemName(folderUrl);
-  const folderPath = `${downloadPath}/${folderName}`;
+  console.log(`🧮 Folder has ${itemUrls.length} items`);
 
   await createDirIfNotExists(folderPath);
   await downloadUrls(page, itemUrls, folderPath, fileTypes);
@@ -168,6 +174,17 @@ const loadAllItems = async (page: Page): Promise<void> => {
   }
 };
 
+const goToUrlIfNeeded = async (
+  page: Page,
+  url: string
+): Promise<HTTPResponse | null> => {
+  if (page.url() !== url) {
+    return page.goto(url, { waitUntil: 'networkidle0' });
+  }
+
+  return null;
+};
+
 const getUrls = async (page: Page): Promise<string[]> =>
   page.$$eval('[data-wc="folder-item"]', items =>
     items.map(item => (item as HTMLLinkElement).href)
@@ -188,44 +205,49 @@ const downloadUrls = async (
   fileTypes: FileType[]
 ): Promise<void> => {
   for await (const itemUrl of itemUrls) {
-    console.debug(`⚙️ Processing ${itemUrl}`);
+    const itemName = getItemName(itemUrl);
+    console.debug(`⚙️  Processing: ${itemName}`);
+
     const isFolder = await checkItemIsFolder(page, itemUrl);
 
     if (isFolder) {
-      return navigateToFolder(page, itemUrl, downloadPath, fileTypes);
+      await navigateToFolder(page, itemUrl, downloadPath, fileTypes);
+      continue;
     }
 
-    const itemName = getItemName(itemUrl);
-    const downloadSvg = fileTypes.includes(FileType.SVG);
-    const downloadPng = fileTypes.includes(FileType.PNG);
-    const downloadPdf = fileTypes.includes(FileType.PDF);
+    const hasCanvas = await checkItemHasCanvas(page, itemUrl);
 
-    if (downloadSvg) {
-      const filePath = `${downloadPath}/${itemName}.${FileType.SVG}`;
-      const svg = await page.content();
-      await writeFile(filePath, addGrayBackground(svg));
-      console.log(`⬇️ Downloaded SVG to ${filePath}`);
+    if (!hasCanvas) {
+      console.log('🫙  Item is empty');
+      continue;
     }
 
-    if (downloadPng || downloadPdf) {
-      const { imageBlob, imageBuffer } = await getImageBlob(page, itemUrl);
-
-      if (downloadPng) {
+    try {
+      if (fileTypes.includes(FileType.PNG)) {
+        const imageBuffer = await getImageBlob(page, itemUrl);
         const filePath = `${downloadPath}/${itemName}.${FileType.PNG}`;
         await writeFile(filePath, imageBuffer);
-        console.log(`⬇️ Downloaded PNG to ${filePath}`);
+        console.log('⬇️  Downloaded PNG');
       }
 
-      if (downloadPdf) {
+      if (fileTypes.includes(FileType.PDF)) {
+        const pdfStream = await getPdfStream(page, itemUrl);
         const filePath = `${downloadPath}/${itemName}.${FileType.PDF}`;
-        await goToUrlIfNeeded(page, imageBlob);
-        const pdfStream = await page.createPDFStream({ landscape: true });
         await writeFile(filePath, pdfStream);
-        console.log(`⬇️ Downloaded PDF to ${filePath}`);
+        console.log('⬇️  Downloaded PDF');
       }
-    }
 
-    itemsDownloaded++;
+      if (fileTypes.includes(FileType.SVG)) {
+        const svg = await getSvgContent(page, itemUrl);
+        const filePath = `${downloadPath}/${itemName}.${FileType.SVG}`;
+        await writeFile(filePath, svg);
+        console.log('⬇️  Downloaded SVG');
+      }
+
+      itemsDownloaded++;
+    } catch {
+      console.log('🫙  Item is empty');
+    }
   }
 };
 
@@ -238,56 +260,129 @@ const checkItemIsFolder = async (
   page: Page,
   itemUrl: string
 ): Promise<boolean> => {
-  await goToUrlIfNeeded(page, `${itemUrl}/svg`);
-  const title = await page.title();
-  return title === 'Not Found';
+  await goToUrlIfNeeded(page, itemUrl);
+  const folderContent = await page.$('[data-wc="folder-content"]');
+  return Boolean(folderContent);
 };
 
-const addGrayBackground = (svg: string): string =>
-  svg.replace('>', ' style="background: #f0f4f7;">');
-
-const getImageBlob = async (
+const checkItemHasCanvas = async (
   page: Page,
   itemUrl: string
-): Promise<{ imageBlob: string; imageBuffer: Buffer }> => {
+): Promise<boolean> => {
+  await goToUrlIfNeeded(page, itemUrl);
+  const boardCanvas = await page.$('[data-wc="board-canvas"]');
+  return Boolean(boardCanvas);
+};
+
+const getSvgContent = async (page: Page, itemUrl: string): Promise<string> => {
+  await goToUrlIfNeeded(page, `${itemUrl}/svg`);
+  await setBackgroundColor(page, 'svg');
+  return page.content();
+};
+
+const getImageBlob = async (page: Page, itemUrl: string): Promise<Buffer> => {
   await goToUrlIfNeeded(page, itemUrl);
 
   const shareButtonSelector = 'button[aria-label="Share, Export & Print"]';
   await page.waitForSelector(shareButtonSelector);
-  await page.click(shareButtonSelector);
+  await clickIfEnabled(page, shareButtonSelector);
 
   const copyImageButtonSelector = 'div.m7.large div.mi8:nth-child(3)';
   await page.waitForSelector(copyImageButtonSelector);
 
-  return clickAndWaitForImageBlob(page, copyImageButtonSelector);
+  const imageBuffer = await clickAndWaitForImageBlob(
+    page,
+    copyImageButtonSelector
+  );
+
+  await clickIfEnabled(page, shareButtonSelector);
+  return imageBuffer;
 };
 
 const clickAndWaitForImageBlob = async (
   page: Page,
   elementSelector: string
-): Promise<{ imageBlob: string; imageBuffer: Buffer }> =>
+): Promise<Buffer> =>
   new Promise((resolve, reject) => {
     const emitter = page.on('response', async response => {
-      const url = response.url();
-
-      if (url.startsWith(`blob:${WHIMSICAL_BASE_URL}`)) {
+      if (response.url().startsWith(`blob:${WHIMSICAL_BASE_URL}`)) {
         emitter.removeAllListeners();
 
         if (response.ok()) {
-          resolve({ imageBlob: url, imageBuffer: await response.buffer() });
+          resolve(response.buffer());
         } else {
           reject();
         }
       }
     });
 
-    page.click(elementSelector);
+    clickIfEnabled(page, elementSelector).catch(err => {
+      emitter.removeAllListeners();
+      reject(err);
+    });
   });
 
-const goToUrlIfNeeded = async (page: Page, url: string): Promise<void> => {
-  if (page.url() !== url) {
-    await page.goto(url, { waitUntil: 'networkidle0' });
+const getPdfStream = async (
+  page: Page,
+  itemUrl: string
+): Promise<internal.Readable> => {
+  await goToUrlIfNeeded(page, itemUrl);
+
+  const shareButtonSelector = 'button[aria-label="Share, Export & Print"]';
+  await page.waitForSelector(shareButtonSelector);
+  await clickIfEnabled(page, shareButtonSelector);
+
+  const printButtonSelector = 'div.m7.large div.mi8:nth-child(5)';
+  await page.waitForSelector(printButtonSelector);
+  await clickIfEnabled(page, printButtonSelector);
+
+  await page.waitForSelector('iframe');
+  const [, iframe] = page.frames();
+  const frameContent = await iframe.content();
+  await page.setContent(frameContent, { waitUntil: 'networkidle0' });
+  await setBackgroundColor(page, 'body');
+
+  return page.createPDFStream({ landscape: true, printBackground: true });
+};
+
+const clickIfEnabled = async (
+  page: Page,
+  elementSelector: string
+): Promise<void> => {
+  const isEnabled = await page.$eval(
+    elementSelector,
+    el => (el as HTMLElement).style.pointerEvents !== 'none'
+  );
+
+  if (!isEnabled) {
+    throw new Error(`Element ${elementSelector} is not enabled`);
   }
+
+  await page.click(elementSelector);
+};
+
+const setBackgroundColor = async (
+  page: Page,
+  elementSelector: string
+): Promise<void> => {
+  await page.$eval(
+    elementSelector,
+    el => ((el as HTMLElement).style.backgroundColor = '#f0f4f7')
+  );
+};
+
+const checkItemHasSvg = async (
+  page: Page,
+  itemUrl: string
+): Promise<boolean> => {
+  const response = await goToUrlIfNeeded(page, `${itemUrl}/svg`);
+
+  if (!response?.ok()) {
+    throw new Error(response?.statusText());
+  }
+
+  const title = await page.title();
+  return title === 'Not Found';
 };
 
 const setDownloadPath = (
