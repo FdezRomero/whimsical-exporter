@@ -1,7 +1,6 @@
 {
   "name": "whimsical-exporter",
   "version": "1.0.0",
-  "private": true,
   "description": "CLI tool to export Whimsical boards recursively as image files.",
   "author": "Rodrigo Fernández (@FdezRomero)",
   "license": "MIT",
