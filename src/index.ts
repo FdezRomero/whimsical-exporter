@@ -186,8 +186,8 @@ const goToUrlIfNeeded = async (
 };
 
 const getUrls = async (page: Page): Promise<string[]> =>
-  page.$$eval('[data-wc="folder-content"] .no-user-select', items =>
-    items.map(item => (item as HTMLLinkElement).href)
+  page.$$eval('[data-wc="folder-content"] a.no-user-select', items =>
+    items.map(item => item.href)
   );
 
 const createDirIfNotExists = async (path: string) => {
