@@ -152,8 +152,7 @@ const navigateToFolder = async (
 
 const loadAllItems = async (page: Page): Promise<void> => {
   let moreItems = true;
-  const scrollSelector =
-    '#content-wrapper12 > div:nth-child(1) > div:nth-child(1) > div';
+  const scrollSelector = '[data-wc="folder-content"] > div';
 
   while (moreItems) {
     await page.$eval(
@@ -247,7 +246,8 @@ const downloadUrls = async (
       }
 
       itemsDownloaded++;
-    } catch {
+    } catch (err) {
+      console.error(err);
       console.log('🫙  Item is empty');
     }
   }
@@ -304,7 +304,8 @@ const getImageBlob = async (page: Page, itemUrl: string): Promise<Buffer> => {
   await page.waitForSelector(shareButtonSelector);
   await clickIfEnabled(page, shareButtonSelector);
 
-  const copyImageButtonSelector = 'div.m7.large div.mi8:nth-child(3)';
+  const copyImageButtonSelector =
+    'xpath///div[text()="Copy Image"]/parent::div';
   await page.waitForSelector(copyImageButtonSelector);
 
   const imageBuffer = await clickAndWaitForImageBlob(
@@ -349,7 +350,7 @@ const getPdfStream = async (
   await page.waitForSelector(shareButtonSelector);
   await clickIfEnabled(page, shareButtonSelector);
 
-  const printButtonSelector = 'div.m7.large div.mi8:nth-child(5)';
+  const printButtonSelector = 'xpath///div[text()="Print"]/parent::div';
   await page.waitForSelector(printButtonSelector);
   await clickIfEnabled(page, printButtonSelector);
 
