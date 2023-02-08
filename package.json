@@ -1,6 +1,6 @@
 {
   "name": "whimsical-exporter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI tool to export Whimsical boards recursively as image files.",
   "author": "Rodrigo Fernández (@FdezRomero)",
   "license": "MIT",
@@ -28,7 +28,8 @@
   "scripts": {
     "start": "npm run build && node dist/index.js",
     "build": "tsc",
-    "watch": "tsc -w"
+    "watch": "tsc -w",
+    "release": "standard-version"
   },
   "engines": {
     "node": ">=16"
@@ -49,6 +50,7 @@
     "eslint": "^8.33.0",
     "eslint-config-prettier": "^8.6.0",
     "prettier": "^2.8.3",
+    "standard-version": "^9.5.0",
     "ts-node": "^10.9.1",
     "typescript": "~4.9.5"
   }
