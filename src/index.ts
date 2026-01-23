@@ -117,7 +117,7 @@ const logIn = async (
   await page.goto('https://whimsical.com/login', { waitUntil: 'networkidle0' });
   await page.type('input[type="email"]', email);
   await page.type('input[type="password"]', password);
-  await page.click('input[type="submit"]');
+  await page.click('button[type="submit"]');
 
   try {
     await page.waitForNavigation({ waitUntil: 'networkidle0' });
